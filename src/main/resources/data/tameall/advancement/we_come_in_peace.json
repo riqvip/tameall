@@ -1,0 +1,27 @@
+{
+  "criteria": {
+    "tame": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "icon": {
+      "id": "tameall:gilded_wheat"
+    },
+    "title": {
+      "translate": "advancements.tameall.we_come_in_peace.title"
+    },
+    "description": {
+      "translate": "advancements.tameall.we_come_in_peace.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "requirements": [
+    [
+      "tame"
+    ]
+  ]
+}

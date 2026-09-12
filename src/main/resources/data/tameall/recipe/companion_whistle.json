@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "tameall:golden_wheat",
+    "minecraft:compass"
+  ],
+  "result": {
+    "id": "tameall:companion_whistle",
+    "count": 1
+  }
+}

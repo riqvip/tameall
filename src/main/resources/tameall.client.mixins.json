@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.riqvip.tameall.client.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "CompanionNameplateMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

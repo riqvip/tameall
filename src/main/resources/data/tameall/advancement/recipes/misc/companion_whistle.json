@@ -1,0 +1,25 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_golden_wheat": {
+      "conditions": {
+        "items": [
+          {
+            "items": "tameall:golden_wheat"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    }
+  },
+  "requirements": [
+    [
+      "has_golden_wheat"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "tameall:companion_whistle"
+    ]
+  }
+}

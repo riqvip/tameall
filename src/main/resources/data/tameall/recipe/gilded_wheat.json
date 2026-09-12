@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "NNN",
+    "NWN",
+    "NNN"
+  ],
+  "key": {
+    "N": "minecraft:gold_nugget",
+    "W": "minecraft:wheat"
+  },
+  "result": {
+    "id": "tameall:gilded_wheat",
+    "count": 1
+  }
+}

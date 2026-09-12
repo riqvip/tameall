@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "GGG",
+    "GWG",
+    "GGG"
+  ],
+  "key": {
+    "G": "minecraft:gold_ingot",
+    "W": "minecraft:wheat"
+  },
+  "result": {
+    "id": "tameall:golden_wheat",
+    "count": 1
+  }
+}
