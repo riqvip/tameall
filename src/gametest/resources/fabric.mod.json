@@ -5,7 +5,8 @@
   "environment": "client",
   "entrypoints": {
     "fabric-client-gametest": [
-      "dev.riqvip.tameall.client.CompanionInventoryClientTest"
+      "dev.riqvip.tameall.client.CompanionInventoryClientTest",
+      "dev.riqvip.tameall.client.CompanionRidingClientTest"
     ]
   }
 }

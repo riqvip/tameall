@@ -20,13 +20,20 @@ entity, equipment, variant, and name.
 |:--:|:--:|
 | ![Companion inventory](docs/images/companion-inventory.png) | ![Target editor](docs/images/target-editor.png) |
 
-| Companion roster | Item textures |
+| Companion roster | Riding |
 |:--:|:--:|
-| ![Companion roster](docs/images/companion-roster.png) | ![TameAll item textures](docs/images/items.png) |
+| ![Companion roster](docs/images/companion-roster.png) | ![Companion riding](docs/images/companion-riding.png) |
+
+| Item textures |
+|:--:|
+| ![TameAll item textures](docs/images/items.png) |
 
 ## Features
 
 - Bond eligible creatures with Golden Wheat or the chance-based Gilded Wheat.
+- Vanilla taming stays separate: naturally tamed wolves, cats, parrots,
+  nautiluses, and horse-family mobs cannot also be bonded with Golden Wheat,
+  and a Golden Wheat companion cannot be natively tamed afterward.
 - Manage movement, combat stance, operating area, protection abilities, item
   collection, equipment, cargo, and nametags from dark-themed screens.
 - Use Passive, Assist, or Defend Area behavior with include and exclude target
@@ -37,19 +44,31 @@ entity, equipment, variant, and name.
   across saves and entity conversions.
 - Keep the original entity and its behavior identity while making its actions
   owner-aware and configurable.
+- Ride bonded pets with a saddle by default. Permission level 2 can waive the
+  saddle requirement per pet. Ground, hopping, flying, aquatic, amphibious,
+  and stationary profiles use the pet's movement attributes and effects; native
+  mount controls remain native.
+  Mounted attacks are off by default and use the pet's normal melee, ranged, and
+  special attack goals when enabled without allowing pursuit or autonomous
+  steering. Companion inventory titles use the pet name or localized species
+  name, while the saddle, chest, and offhand empty-slot outlines remain visible.
+  Press the normal inventory key (E by default) while mounted to open the
+  ridden companion's inventory. Cargo requires an equipped chest, trapped chest,
+  barrel, or shulker box by default; permission level 2 can waive that per pet.
+  Shulker cargo stays packed in the shulker when it is removed.
+- Movement controls scroll when the minimized window cannot fit every option.
 
 ## Development status
 
-TameAll is an early `0.1.0-alpha.1` release. Features can still change during
-the alpha series. The mod has been exercised through ongoing play in a real
-Minecraft client, the common and client source sets compile, the full Gradle
-build passes, and the headless server GameTest suite passes all 18 required
-tests.
-
-The interactive client GameTest needs a graphical display and is not available
-in the headless WSL development environment. Manual client playtesting remains
-part of development; focused regression coverage is recorded in
-[PLAN.md](PLAN.md).
+TameAll `0.2.0` is an alpha prerelease. Starting with this release, the mod
+metadata and JAR use plain semantic versions; the `v` prefix is reserved for
+Git tags and GitHub release names. Alpha status is communicated by the GitHub
+prerelease label and release notes.
+The common and client source sets compile, all 27 server GameTests pass, and the
+client GameTest passes with inventory screenshots at multiple GUI scales plus a
+ridden zombie movement check. Manual visual riding and multiplayer checks remain
+separate from automated tests.
+Headless runs normally include narrator, OpenAL, and online-auth warnings.
 
 ## Requirements
 
@@ -64,6 +83,7 @@ Use Java 25 and run Gradle through the included wrapper:
 ```text
 ./gradlew compileJava compileClientJava
 ./gradlew runGameTestServer
+./gradlew runClientGameTest
 ./gradlew build
 ```
 
@@ -71,17 +91,17 @@ The release JAR is written to `build/libs/`.
 
 ## Release track
 
-The project uses a staged SemVer release track:
+Starting with `0.2.0`, TameAll uses plain SemVer values for Fabric metadata and
+JAR names. Git tags and GitHub release names use the `v` prefix, and GitHub's
+prerelease label identifies alpha and beta builds.
 
-- `0.1.0-alpha.N` — early testing while features and behavior can change.
-- `0.1.0-beta.N` — feature set is mostly complete and testing focuses on
-  stability.
-- `0.1.0-rc.N` — release candidate pending final verification.
-- `0.1.0` — first stable release.
-- `0.1.1` — compatible bugfix release after `0.1.0`.
+- `0.2.0` — current alpha feature release.
+- `0.2.1` — compatible bugfix release for the `0.2.x` line.
+- `0.3.0` — next compatible feature release.
+- `1.0.0` — first stable release.
 
-The first public package is planned as the GitHub pre-release
-`v0.1.0-alpha.1`, including the matching JAR.
+The previous development package was named `v0.1.0-alpha.1`; it remains a
+historical release under that name.
 
 ## License
 

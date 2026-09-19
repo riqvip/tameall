@@ -33,6 +33,7 @@ public final class CompanionNetworking {
                 (payload, context) -> context.server().execute(() -> handler.handle(context.player(), payload)));
     }
 
+
     @FunctionalInterface
     public interface CompanionServerHandler {
         void handle(ServerPlayer player, CompanionActionPayload payload);
@@ -47,4 +48,5 @@ public final class CompanionNetworking {
     public interface TargetSelectionServerHandler {
         void handle(ServerPlayer player, CompanionTargetSelectionPayload payload);
     }
+
 }

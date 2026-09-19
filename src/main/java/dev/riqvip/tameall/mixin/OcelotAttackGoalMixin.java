@@ -19,10 +19,7 @@ public abstract class OcelotAttackGoalMixin {
 
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
     private void tameall$preventProtectedPounce(CallbackInfo callback) {
-        if (CompanionCombat.rejectsAttack(mob, target)) {
-            target = null;
-            CompanionCombat.clearManagedTarget(mob);
-            mob.setTarget(null);
+        if (!CompanionCombat.isAttackTargetValid(mob, target)) {
             callback.cancel();
         }
     }

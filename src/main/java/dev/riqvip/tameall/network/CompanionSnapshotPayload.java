@@ -70,7 +70,8 @@ public record CompanionSnapshotPayload(CompanionMenuSnapshot snapshot, boolean o
         buf.writeUtf(s.teleportMode().name(), 64);
         buf.writeBoolean(s.pickupItems()); buf.writeDouble(s.pickupRadius()); buf.writeBoolean(s.collectXpForMending());
         buf.writeDouble(s.xpRadius());
-        buf.writeBoolean(s.useDurability());
+        buf.writeBoolean(s.useDurability()); buf.writeBoolean(s.saddleRequired());
+        buf.writeBoolean(s.attackWhileMounted()); buf.writeBoolean(s.cargoContainerRequired());
     }
 
     private static CompanionSettings readSettings(RegistryFriendlyByteBuf buf) {
@@ -83,7 +84,8 @@ public record CompanionSnapshotPayload(CompanionMenuSnapshot snapshot, boolean o
         return new CompanionSettings(mode, stance, magic, nameplate, health, buf.readVarInt(),
                 enumValue(TargetFilter.class, buf.readUtf(64)),
                 enumValue(TeleportMode.class, buf.readUtf(64)), buf.readBoolean(), buf.readDouble(),
-                buf.readBoolean(), buf.readDouble(), buf.readBoolean());
+                buf.readBoolean(), buf.readDouble(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(),
+                buf.readBoolean());
     }
 
     private static void writeCapabilities(RegistryFriendlyByteBuf buf, CompanionCapabilities c) {

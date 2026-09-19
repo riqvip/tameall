@@ -15,7 +15,7 @@ public final class CompanionClientNetworking {
                 (payload, context) -> context.client().execute(() ->
                         CompanionScreens.accept(payload.snapshot(), payload.openScreen())));
         ClientPlayNetworking.registerGlobalReceiver(CompanionRosterPayload.ID,
-                (payload, context) -> context.client().execute(() -> CompanionClientRoster.accept(payload.entries())));
+                (payload, context) -> context.client().execute(() -> CompanionClientRoster.accept(payload)));
         ClientPlayNetworking.registerGlobalReceiver(CompanionTargetCatalogPayload.ID,
                 (payload, context) -> context.client().execute(() -> CompanionScreens.openTargetSelector(payload)));
         ClientPlayNetworking.registerGlobalReceiver(CompanionTargetSelectionResultPayload.ID,

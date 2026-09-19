@@ -85,6 +85,12 @@ public final class CompanionRosterScreen extends Screen {
     }
 
     @Override
+    public void removed() {
+        CompanionClientRoster.closed(this);
+        super.removed();
+    }
+
+    @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (mouseX >= left && mouseX <= left + panelWidth && mouseY >= rowTop
                 && mouseY <= top + panelHeight - 12 && scrollY != 0.0D) {

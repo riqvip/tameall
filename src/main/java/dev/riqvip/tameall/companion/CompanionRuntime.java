@@ -163,6 +163,9 @@ public final class CompanionRuntime {
                         changed = settings.withMagic(settings.magic().withPreventVexExpiry(request.value()));
                 case SET_ENDERMAN_BLOCK_PICKUP ->
                         changed = settings.withMagic(settings.magic().withAllowEndermanBlockPickup(request.value()));
+                case SET_SADDLE_REQUIRED -> changed = settings.withSaddleRequired(request.value());
+                case SET_ATTACK_WHILE_MOUNTED -> changed = settings.withAttackWhileMounted(request.value());
+                case SET_CARGO_CONTAINER_REQUIRED -> changed = settings.withCargoContainerRequired(request.value());
                 case SET_SAFE_SPECIAL_ABILITIES ->
                         changed = settings.withMagic(settings.magic().withSafeSpecialAbilities(request.value()));
                 default -> { }
@@ -182,9 +185,13 @@ public final class CompanionRuntime {
     }
 
     public static void sendRoster(ServerPlayer player) {
+        sendRoster(player, true);
+    }
+
+    private static void sendRoster(ServerPlayer player, boolean openScreen) {
         CompanionJournal journal = CompanionJournal.get(player.level().getServer().overworld());
         refreshRosterPresence(player.level().getServer(), journal, player.getUUID());
-        ServerPlayNetworking.send(player, CompanionRosterPayload.from(journal.listOwned(player.getUUID())));
+        ServerPlayNetworking.send(player, CompanionRosterPayload.from(journal.listOwned(player.getUUID()), openScreen));
     }
 
     private static void refreshRosterPresence(net.minecraft.server.MinecraftServer server,
@@ -281,6 +288,7 @@ public final class CompanionRuntime {
                         : selection.isLegacyAllLiving() ? TargetFilter.ALL_LIVING : TargetFilter.CUSTOM));
         CompanionAttachments.set(living, updated);
         CompanionJournal.get(level).replaceEntity(updated, living.getUUID(), dimension(level), blockPos(living), level.getGameTime());
+        CompanionJournal.get(level).updateTargetSelection(updated.bondId(), selection, level.getGameTime());
         sendSnapshot(player, living, updated, false);
         sendTargetResult(player, payload, true, "Targets saved.");
     }
@@ -323,7 +331,7 @@ public final class CompanionRuntime {
                 }
             }
         }
-        sendRoster(player);
+        sendRoster(player, false);
     }
 
     private static void sendSnapshot(ServerPlayer player, LivingEntity entity, CompanionState state, boolean openScreen) {
@@ -332,8 +340,7 @@ public final class CompanionRuntime {
     }
 
     private static void applyPresentation(LivingEntity entity, CompanionState state) {
-        String base = state.displayName() == null || state.displayName().isBlank()
-                ? state.creatureType() : state.displayName();
+        String base = CompanionNames.displayName(state.displayName(), state.creatureType());
         boolean showName = state.settings().nameplate() == NameplateMode.ALWAYS;
         boolean showHealth = state.settings().healthDisplay() == HealthDisplayMode.ON;
         entity.setCustomName(Component.literal(showHealth
@@ -348,7 +355,9 @@ public final class CompanionRuntime {
         CompanionEquipment.captureNative(entity, state.settings().useDurability());
         player.openMenu(new ExtendedMenuProvider<Integer>() {
             @Override public Component getDisplayName() {
-                return Component.translatable("tameall.inventory");
+                return state.displayName() == null || state.displayName().isBlank()
+                        ? entity.getType().getDescription()
+                        : Component.literal(state.displayName());
             }
             @Override public Integer getScreenOpeningData(ServerPlayer ignored) { return entity.getId(); }
             @Override public AbstractContainerMenu createMenu(int id, net.minecraft.world.entity.player.Inventory inventory,
@@ -368,7 +377,9 @@ public final class CompanionRuntime {
                 || (value && action == CompanionAction.SET_HABITAT_ADAPTATION)
                 || (value && action == CompanionAction.SET_REUSABLE_EXPLOSIONS)
                 || (value && action == CompanionAction.SET_PREVENT_VEX_EXPIRY)
-                || (value && action == CompanionAction.SET_SAFE_SPECIAL_ABILITIES));
+                || (value && action == CompanionAction.SET_SAFE_SPECIAL_ABILITIES)
+                || (action == CompanionAction.SET_SADDLE_REQUIRED && !value)
+                || (action == CompanionAction.SET_CARGO_CONTAINER_REQUIRED && !value));
     }
 
     /** Permission level 2 (gamemaster) is the cheat gate used by vanilla commands. */
@@ -420,6 +431,12 @@ public final class CompanionRuntime {
         boolean golden = held.getItem() == ModItems.GOLDEN_WHEAT;
         boolean gilded = held.getItem() == ModItems.GILDED_WHEAT;
         if ((golden || gilded) && !CompanionAttachments.get(target).isPresent() && !player.isCrouching()) {
+            // Vanilla's own tame state is authoritative for naturally
+            // tameable mobs. Golden Wheat must not create a second TameAll
+            // bond on an already-tamed wolf, cat, parrot, horse, llama, or
+            // other horse-family creature; PASS preserves its normal item
+            // interaction (feeding, healing, or breeding) unchanged.
+            if (TamingPolicy.isNaturallyTamed(living)) return InteractionResult.PASS;
             if (level.isClientSide()) return InteractionResult.SUCCESS;
             if (!(level instanceof ServerLevel server) || held.isEmpty()) return InteractionResult.PASS;
             // Older builds could lose the entity attachment when an empty item
@@ -470,7 +487,20 @@ public final class CompanionRuntime {
             return InteractionResult.SUCCESS;
         }
         CompanionState state = CompanionAttachments.get(target).orElse(null);
-        if (state != null && player.getUUID().equals(state.ownerId()) && (golden || gilded) && !player.isCrouching()) {
+        boolean owner = state != null && player.getUUID().equals(state.ownerId());
+        if (state != null && !player.isCrouching() && held.isEmpty()
+                && hand == InteractionHand.MAIN_HAND) {
+            if (level.isClientSide()) return InteractionResult.SUCCESS;
+            if (owner && CompanionRiding.canMount(player, living, state)) {
+                player.startRiding(target, true, false);
+            }
+            return InteractionResult.SUCCESS;
+        }
+        if (state != null && !state.dead() && (!player.isCrouching() || !owner)
+                && TamingPolicy.isNativeTamingInteraction(living, held)) {
+            return InteractionResult.SUCCESS;
+        }
+        if (state != null && owner && (golden || gilded) && !player.isCrouching()) {
             if (!level.isClientSide() && level instanceof ServerLevel server) {
                 if (living.getHealth() < living.getMaxHealth()) {
                     float before = living.getHealth();
@@ -484,7 +514,7 @@ public final class CompanionRuntime {
             }
             return InteractionResult.SUCCESS;
         }
-        if (state != null && player.getUUID().equals(state.ownerId()) && player.isCrouching()) {
+        if (state != null && owner && player.isCrouching()) {
             if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) menuOpener.accept(serverPlayer, living);
             return InteractionResult.SUCCESS;
         }
@@ -498,6 +528,7 @@ public final class CompanionRuntime {
         CompanionState state = recorded.snapshot().markAlive();
         if (!state.ownerId().equals(recorded.ownerId())) return null;
         CompanionAttachments.set(living, state);
+        CompanionAttachments.setTargetSelection(living, recorded.targetSelection());
         if (living instanceof Mob mob) {
             mob.setPersistenceRequired();
             CompanionCombat.clearManagedTarget(mob);
@@ -506,7 +537,7 @@ public final class CompanionRuntime {
         }
         CompanionEquipment.ensure(living);
         if (CompanionAttachments.getTargetSelection(living).isEmpty()) {
-            CompanionAttachments.setTargetSelection(living, TargetSelection.fromLegacy(state.settings().targetFilter()));
+            CompanionAttachments.setTargetSelection(living, recorded.targetSelection());
         }
         CompanionEquipment.captureNative(living, state.settings().useDurability());
         living.skipDropExperience();
@@ -521,17 +552,28 @@ public final class CompanionRuntime {
         if (entity instanceof Mob mob) CompanionCombat.clearManagedTarget(mob);
         CompanionJournal journal = CompanionJournal.get(level);
         CompanionState state = CompanionAttachments.get(entity).orElse(null);
+        BondRecord recorded = journal.findLiveByEntity(entity.getUUID());
         if (state == null) {
-            BondRecord recorded = journal.findLiveByEntity(entity.getUUID());
             if (recorded != null && !journal.hasLiveOwnerConflict(entity.getUUID(), recorded.ownerId())) {
                 state = restoreFromJournal(living, level, recorded);
             }
+        }
+        if (state != null && recorded != null && !recorded.dead()
+                && recorded.snapshot().revision() > state.revision()
+                && recorded.ownerId().equals(state.ownerId())) {
+            // A newer journal snapshot may have been written after the
+            // entity's serialized attachment. The journal wins before this
+            // load is published again.
+            state = recorded.snapshot().markAlive();
+            CompanionAttachments.set(living, state);
+            CompanionAttachments.setTargetSelection(living, recorded.targetSelection());
         }
         if (state == null || state.dead()) return;
         if (entity instanceof Mob mob) mob.setPersistenceRequired();
         CompanionEquipment.ensure(living);
         if (CompanionAttachments.getTargetSelection(living).isEmpty()) {
-            CompanionAttachments.setTargetSelection(living, TargetSelection.fromLegacy(state.settings().targetFilter()));
+            CompanionAttachments.setTargetSelection(living, recorded == null
+                    ? TargetSelection.fromLegacy(state.settings().targetFilter()) : recorded.targetSelection());
         }
         // Native entity data is the source of truth on load; the attachment is
         // only the persistent mirror used by the menu and journal.
@@ -558,6 +600,7 @@ public final class CompanionRuntime {
         if (reason == RemovalReason.UNLOADED_TO_CHUNK || reason == RemovalReason.UNLOADED_WITH_PLAYER
                 || reason == RemovalReason.CHANGED_DIMENSION) return;
         if (CompanionAttachments.get(entity).map(state -> !state.dead()).orElse(false)) {
+            CompanionRiding.forget(entity);
             PENDING_REMOVALS.put(entity.getUUID(), new PendingRemoval(entity, level, reason, level.getGameTime()));
         }
     }
@@ -605,10 +648,12 @@ public final class CompanionRuntime {
         CompanionAttachments.get(entity).ifPresent(state -> {
             if (state.dead()) return;
             if (entity instanceof Mob mob) CompanionCombat.clearManagedTarget(mob);
+            CompanionRiding.forget(entity);
             CompanionEquipment.captureNative(entity, state.settings().useDurability());
             CompanionState dead = CompanionLifecycle.died(state);
             CompanionAttachments.set(entity, dead);
             CompanionEquipment.dropAndClear(entity, level);
+            CompanionContainer.dropAndClear(entity, level);
             CompanionInventory.dropAndClear(entity, level);
             entity.skipDropExperience();
             CompanionJournal.get(level).markDead(dead, dimension(level), blockPos(entity), level.getGameTime());
@@ -743,12 +788,12 @@ public final class CompanionRuntime {
                     () -> CompanionAttachments.setTargetSelection(newMob,
                             TargetSelection.fromLegacy(converted.settings().targetFilter())));
             CompanionEquipment.apply(newMob, CompanionEquipment.read(oldMob));
-            CompanionInventory.write(newMob, CompanionInventory.read(oldMob)); applyPresentation(newMob, converted);
+            CompanionContainer.transfer(oldMob, newMob); applyPresentation(newMob, converted);
             if (newMob.level() instanceof ServerLevel level) {
                 newMob.setPersistenceRequired();
                 CompanionJournal.get(level).replaceEntity(converted, newMob.getUUID(), dimension(level), blockPos(newMob), level.getGameTime());
             }
-            CompanionEquipment.write(oldMob, List.of()); CompanionInventory.write(oldMob, List.of()); CompanionAttachments.clear(oldMob);
+            CompanionEquipment.write(oldMob, List.of()); CompanionContainer.clear(oldMob); CompanionAttachments.clear(oldMob);
         });
     }
 
@@ -862,8 +907,25 @@ public final class CompanionRuntime {
             return;
         }
         if (entity instanceof Mob mob) {
-            applyMovement(level, mob, state, owner);
-            updateCombatTarget(level, mob, state, owner);
+            if (CompanionRiding.isControlled(mob)) {
+                if (state.settings().saddleRequired()
+                        && CompanionRiding.ridingEquipment(mob).isEmpty()) {
+                    owner.stopRiding();
+                    CompanionRiding.forget(mob);
+                    mob.getNavigation().stop();
+                    CompanionCombat.clearManagedTarget(mob);
+                    mob.setTarget(null);
+                    return;
+                }
+                // Native attack AI is prepared from LivingEntity.aiStep before
+                // the goal selector runs. Keep the navigation clear here as a
+                // final safety net, but do not select a second target after
+                // the entity has already ticked.
+                mob.getNavigation().stop();
+            } else {
+                applyMovement(level, mob, state, owner);
+                updateCombatTarget(level, mob, state, owner);
+            }
             CompanionCombat.sanitize(mob);
             updateShieldUse(mob);
         }

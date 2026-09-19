@@ -17,9 +17,11 @@ public abstract class RangedCrossbowAttackGoalMixin {
 
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
     private void tameall$preventProtectedBolt(CallbackInfo callback) {
-        if (CompanionCombat.rejectsAttack(mob, mob.getTarget())) {
-            CompanionCombat.clearManagedTarget(mob);
-            mob.setTarget(null);
+        if (!CompanionCombat.isAttackTargetValid(mob, mob.getTarget())) {
+            if (mob.isUsingItem()) mob.stopUsingItem();
+            if (mob instanceof net.minecraft.world.entity.monster.CrossbowAttackMob crossbow) {
+                crossbow.setChargingCrossbow(false);
+            }
             callback.cancel();
         }
     }

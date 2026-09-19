@@ -21,6 +21,9 @@ public enum CompanionAction {
     SET_REUSABLE_EXPLOSIONS,
     SET_PREVENT_VEX_EXPIRY,
     SET_ENDERMAN_BLOCK_PICKUP,
+    SET_SADDLE_REQUIRED,
+    SET_ATTACK_WHILE_MOUNTED,
+    SET_CARGO_CONTAINER_REQUIRED,
     OPEN_INVENTORY,
     OPEN_TARGET_SELECTOR,
     /** Legacy wire names accepted for old clients and converted server-side. */

@@ -110,7 +110,17 @@ public final class CompanionJournal extends SavedData {
         records.values().removeIf(old -> !old.bondId().equals(state.bondId())
                 && old.ownerId().equals(state.ownerId())
                 && entityId != null && entityId.equals(old.entityId()));
-        put(BondRecord.fromState(state, entityId, dimension, position, tick));
+        BondRecord replacement = BondRecord.fromState(state, entityId, dimension, position, tick);
+        if (current != null) replacement = replacement.withTargetSelection(current.targetSelection(), tick);
+        put(replacement);
+        return true;
+    }
+
+    /** Updates a pending target include/exclude snapshot without loading an entity. */
+    public boolean updateTargetSelection(UUID bondId, TargetSelection selection, long tick) {
+        BondRecord current = records.get(bondId);
+        if (current == null || current.dead() || selection == null) return false;
+        put(current.withTargetSelection(selection, tick));
         return true;
     }
 

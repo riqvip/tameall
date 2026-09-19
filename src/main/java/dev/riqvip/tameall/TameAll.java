@@ -16,6 +16,7 @@ import dev.riqvip.tameall.menu.CompanionMenu;
 import dev.riqvip.tameall.network.CompanionNetworking;
 import dev.riqvip.tameall.companion.CompanionRuntime;
 import dev.riqvip.tameall.companion.CompanionInventory;
+import dev.riqvip.tameall.companion.CompanionContainer;
 import dev.riqvip.tameall.companion.CompanionEquipment;
 import dev.riqvip.tameall.companion.CompanionAttachments;
 
@@ -34,6 +35,7 @@ public final class TameAll implements ModInitializer {
 		// Force the persistent cargo attachment to register during mod initialization,
 		// rather than on the first player interaction.
 		CompanionInventory.CARGO.toString();
+		CompanionContainer.CONTENTS.toString();
 		CompanionEquipment.ITEMS.toString();
 		CompanionAttachments.STATE.toString();
 		CompanionAttachments.PRESENTATION.toString();
@@ -46,7 +48,7 @@ public final class TameAll implements ModInitializer {
         CompanionRuntime.initialize();
         CompanionNetworking.registerServer(CompanionRuntime::handleAction);
         CompanionNetworking.registerRosterActionServer(CompanionRuntime::handleRosterAction);
-		CompanionNetworking.registerTargetSelectionServer(CompanionRuntime::handleTargetSelection);
+        CompanionNetworking.registerTargetSelectionServer(CompanionRuntime::handleTargetSelection);
 		LOGGER.info("{} common content initialized", MOD_NAME);
 	}
 

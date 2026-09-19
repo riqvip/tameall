@@ -94,6 +94,15 @@ public final class CompanionCombat {
         return candidate instanceof LivingEntity living && rejectsAttack(attacker, living);
     }
 
+    /**
+     * Shared attack-time validity check for native goals.  Unlike target
+     * acquisition this method does not assign or clear a target; it only says
+     * whether a goal may continue using the target it already cached.
+     */
+    public static boolean isAttackTargetValid(Mob attacker, LivingEntity candidate) {
+        return candidate != null && candidate.isAlive() && !rejectsAttack(attacker, candidate);
+    }
+
     /** Friendship and golem rules used while the runtime is selecting a target. */
     public static boolean rejectsAsTarget(Mob attacker, LivingEntity candidate) {
         return rejectsFriendly(attacker, candidate) || rejectsUnprovokedGolem(attacker, candidate);
@@ -254,7 +263,14 @@ public final class CompanionCombat {
             var angerReference = neutral.getPersistentAngerTarget();
             LivingEntity angerTarget = angerReference == null
                     ? null : angerReference.getEntity(mob.level(), LivingEntity.class);
-            if (isCompanion(mob) || rejectsAsTarget(mob, angerTarget)) {
+            if (isCompanion(mob)) {
+                // stopBeingAngry() also calls setTarget(null), which destroys
+                // a legal target selected by the companion runtime. Clear
+                // only native anger metadata and leave the managed target in
+                // place for the normal attack goal.
+                neutral.setPersistentAngerTarget(null);
+                neutral.setPersistentAngerEndTime(NeutralMob.NO_ANGER_END_TIME);
+            } else if (rejectsAsTarget(mob, angerTarget)) {
                 neutral.stopBeingAngry();
                 clearedMemory = true;
             }

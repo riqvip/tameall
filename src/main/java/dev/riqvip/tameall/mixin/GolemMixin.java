@@ -15,6 +15,17 @@ public abstract class GolemMixin {
     @Inject(method = "canAttack", at = @At("HEAD"), cancellable = true)
     private void tameall$preventUnprovokedPetTarget(LivingEntity target,
                                                      CallbackInfoReturnable<Boolean> callback) {
-        if (CompanionCombat.rejectsNativeTarget((Mob) (Object) this, target)) callback.setReturnValue(false);
+        Mob golem = (Mob) (Object) this;
+        // Iron Golem's vanilla override refuses creepers and player-created
+        // player targets. A bonded, explicitly managed target has already
+        // passed TameAll's friendship/PvP policy, so let the native attack
+        // goal proceed for that one authorized case.
+        if (CompanionCombat.isCompanion(golem)
+                && CompanionCombat.isManagedTarget(golem, target)
+                && !CompanionCombat.rejectsAttack(golem, target)) {
+            callback.setReturnValue(true);
+        } else if (CompanionCombat.rejectsNativeTarget(golem, target)) {
+            callback.setReturnValue(false);
+        }
     }
 }

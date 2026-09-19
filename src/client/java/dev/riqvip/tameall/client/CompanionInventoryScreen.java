@@ -15,18 +15,19 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
     public CompanionInventoryScreen(CompanionMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title, 176, 232);
         this.titleLabelX = 28;
-        this.titleLabelY = 6;
+        this.titleLabelY = 9;
         this.inventoryLabelX = 8;
         this.inventoryLabelY = 143;
     }
 
     @Override protected void init() {
         super.init();
-        addRenderableWidget(new DarkButton(font, leftPos + 153, topPos + 4, 18, 18,
+        addRenderableWidget(new DarkButton(font, leftPos + imageWidth - 24, topPos + 6, 18, 18,
                 Component.literal("×"), ignored -> onClose()));
     }
 
     @Override public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
+        g.fillGradient(0, 0, width, height, 0xC0101010, 0xD0101010);
         CompanionUiStyle.panel(g, leftPos, topPos, imageWidth, imageHeight);
         g.fill(leftPos + 28, topPos + 18, leftPos + 96, topPos + 78, 0xFF171717);
         for (int index = 0; index < menu.slots.size(); index++) {
@@ -34,14 +35,14 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
             var slot = menu.getSlot(index);
             int x = leftPos + slot.x - 1;
             int y = topPos + slot.y - 1;
-            drawSlot(g, x, y);
+            drawSlot(g, x, y, slot.isActive());
         }
     }
 
-    private void drawSlot(GuiGraphicsExtractor g, int x, int y) {
-        g.fill(x, y, x + 18, y + 18, 0xFF111111);
-        g.fill(x + 1, y + 1, x + 17, y + 17, 0xFF696969);
-        g.fill(x + 2, y + 2, x + 16, y + 16, 0xFF303030);
+    private void drawSlot(GuiGraphicsExtractor g, int x, int y, boolean active) {
+        g.fill(x, y, x + 18, y + 18, active ? 0xFF111111 : 0xFF0B0B0B);
+        g.fill(x + 1, y + 1, x + 17, y + 17, active ? 0xFF696969 : 0xFF383838);
+        g.fill(x + 2, y + 2, x + 16, y + 16, active ? 0xFF303030 : 0xFF1D1D1D);
     }
 
     @Override public void extractContents(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
@@ -65,7 +66,5 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         g.text(font, Component.literal("Companion cargo"), 8, 80, CompanionUiStyle.MUTED_TEXT, false);
         g.text(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY,
                 CompanionUiStyle.TEXT, false);
-        g.text(font, Component.literal("Hand"), 108, 50, CompanionUiStyle.MUTED_TEXT, false);
-        g.text(font, Component.literal("Off"), 148, 50, CompanionUiStyle.MUTED_TEXT, false);
     }
 }

@@ -8,7 +8,10 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 /** Persistent attachment shared by every living vanilla or modded creature. */
 public final class CompanionAttachments {
@@ -34,9 +37,40 @@ public final class CompanionAttachments {
             }, buf -> new Presentation(enumValue(NameplateMode.class, buf.readUtf(32)),
                     enumValue(HealthDisplayMode.class, buf.readUtf(32))));
 
+    /** Small client-visible controller contract. Full companion state stays server-owned. */
+    private static final StreamCodec<RegistryFriendlyByteBuf, RidingView> RIDING_VIEW_CODEC =
+            StreamCodec.of((buf, value) -> {
+                buf.writeUUID(value.ownerId());
+                buf.writeUUID(value.bondId());
+                buf.writeVarLong(value.revision());
+                buf.writeUtf(value.profile().name(), 32);
+                buf.writeBoolean(value.saddleRequired());
+                buf.writeBoolean(value.canJump());
+                buf.writeBoolean(value.canFly());
+                buf.writeBoolean(value.canSwim());
+                buf.writeBoolean(value.cargoContainerRequired());
+            }, buf -> new RidingView(buf.readUUID(), buf.readUUID(), buf.readVarLong(),
+                    enumValue(CompanionRiding.RidingProfile.class, buf.readUtf(32)),
+                    buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean()));
+
     public static final AttachmentType<Presentation> PRESENTATION = AttachmentRegistry.create(
             Identifier.fromNamespaceAndPath("tameall", "companion_presentation"),
             builder -> builder.syncWith(PRESENTATION_CODEC, AttachmentSyncPredicate.all()));
+
+    public static final AttachmentType<RidingView> RIDING_VIEW = AttachmentRegistry.create(
+            Identifier.fromNamespaceAndPath("tameall", "riding_view"),
+            builder -> builder.syncWith(RIDING_VIEW_CODEC, AttachmentSyncPredicate.all()));
+
+    public record RidingView(UUID ownerId, UUID bondId, long revision, CompanionRiding.RidingProfile profile,
+                             boolean saddleRequired, boolean canJump,
+                             boolean canFly, boolean canSwim, boolean cargoContainerRequired) {
+        public RidingView {
+            Objects.requireNonNull(ownerId, "ownerId");
+            Objects.requireNonNull(bondId, "bondId");
+            if (revision < 0) throw new IllegalArgumentException("revision cannot be negative");
+            Objects.requireNonNull(profile, "profile");
+        }
+    }
 
     public static final AttachmentType<GolemProvocation> GOLEM_PROVOCATION = AttachmentRegistry.createPersistent(
             Identifier.fromNamespaceAndPath("tameall", "golem_provocation"), CompanionCodecs.GOLEM_PROVOCATION);
@@ -75,7 +109,14 @@ public final class CompanionAttachments {
             target.removeAttached(PRESENTATION);
             target.removeAttached(TARGET_SELECTION);
             target.removeAttached(VEX_LIFETIME);
+            target.removeAttached(RIDING_VIEW);
+            target.removeAttached(CompanionContainer.CONTENTS);
         }
+    }
+
+    public static Optional<RidingView> getRidingView(Entity entity) {
+        if (!(entity instanceof AttachmentTarget target)) return Optional.empty();
+        return Optional.ofNullable(target.getAttached(RIDING_VIEW));
     }
 
     public static Optional<Presentation> getPresentation(Entity entity) {
@@ -141,6 +182,12 @@ public final class CompanionAttachments {
         if (entity instanceof AttachmentTarget target && state != null) {
             target.setAttached(PRESENTATION, new Presentation(state.settings().nameplate(),
                     state.settings().healthDisplay()));
+            if (entity instanceof LivingEntity living) {
+                target.setAttached(RIDING_VIEW, new RidingView(state.ownerId(), state.bondId(), state.revision(),
+                        CompanionRiding.profile(living), state.settings().saddleRequired(),
+                        CompanionRiding.canJump(living), CompanionRiding.canFly(living),
+                        CompanionRiding.canSwim(living), state.settings().cargoContainerRequired()));
+            }
         }
     }
 

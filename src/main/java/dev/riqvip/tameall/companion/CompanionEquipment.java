@@ -11,6 +11,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -123,8 +124,12 @@ public final class CompanionEquipment {
     /** Drops exactly one copy of the attached gear and clears it before spawning items. */
     public static void dropAndClear(LivingEntity entity, ServerLevel level) {
         List<ItemStack> items = read(entity);
+        EquipmentSlot ridingSlot = CompanionRiding.ridingEquipmentSlot(entity);
+        ItemStack ridingGear = entity.getItemBySlot(ridingSlot).copy();
+        entity.setItemSlot(ridingSlot, ItemStack.EMPTY);
         if (entity instanceof AttachmentTarget target) target.setAttached(ITEMS, List.of());
         for (ItemStack stack : items) if (!stack.isEmpty()) entity.spawnAtLocation(level, stack.copy());
+        if (!ridingGear.isEmpty()) entity.spawnAtLocation(level, ridingGear);
     }
 
     public static EquipmentSlot nativeSlot(int index) {
@@ -149,9 +154,11 @@ public final class CompanionEquipment {
         for (EquipmentSlot slot : SLOTS) mob.setDropChance(slot, 0.0F);
     }
 
-    /** Unified 33-slot companion view: six equipment slots followed by 27 cargo slots. */
+    /** Unified companion view: six equipment slots, saddle, 27 cargo slots, and a container slot. */
     private static final class EquipmentCargoContainer implements Container {
-        private static final int MENU_SIZE = SIZE + CompanionInventory.SIZE;
+        private static final int SADDLE_INDEX = SIZE;
+        private static final int CONTAINER_INDEX = SIZE + 1 + CompanionInventory.SIZE;
+        private static final int MENU_SIZE = CONTAINER_INDEX + 1;
         private final Entity entity;
 
         private EquipmentCargoContainer(Entity entity) {
@@ -171,8 +178,12 @@ public final class CompanionEquipment {
             if (index < SIZE && entity instanceof LivingEntity living) {
                 return living.getItemBySlot(nativeSlot(index)).copy();
             }
-            if (index >= SIZE && index < MENU_SIZE) {
-                return CompanionInventory.read(entity).get(index - SIZE).copy();
+            if (index == SADDLE_INDEX && entity instanceof LivingEntity living) {
+                return CompanionRiding.ridingEquipment(living);
+            }
+            if (index == CONTAINER_INDEX) return CompanionContainer.displayStack(entity);
+            if (index > SADDLE_INDEX && index < MENU_SIZE) {
+                return CompanionInventory.read(entity).get(index - SADDLE_INDEX - 1).copy();
             }
             return ItemStack.EMPTY;
         }
@@ -202,9 +213,17 @@ public final class CompanionEquipment {
                     captureNative(living, useDurability);
                 }
                 CompanionEquipment.set(entity, index, stack);
-            } else if (index >= SIZE && index < MENU_SIZE) {
+            } else if (index == SADDLE_INDEX && entity instanceof LivingEntity living) {
+                living.setItemSlot(CompanionRiding.ridingEquipmentSlot(living), stack.copy());
+            } else if (index == CONTAINER_INDEX && entity instanceof LivingEntity living) {
+                if (stack.isEmpty()) {
+                    CompanionContainer.remove(entity, living.level() instanceof ServerLevel level ? level : null);
+                } else if (CompanionContainer.canPlace(living, stack)) {
+                    CompanionContainer.attach(entity, stack);
+                }
+            } else if (index > SADDLE_INDEX && index < MENU_SIZE) {
                 List<ItemStack> cargo = CompanionInventory.read(entity);
-                cargo.set(index - SIZE, stack.copy());
+                cargo.set(index - SADDLE_INDEX - 1, stack.copy());
                 CompanionInventory.write(entity, cargo);
             }
         }
@@ -217,7 +236,15 @@ public final class CompanionEquipment {
         }
 
         @Override public boolean canPlaceItem(int index, ItemStack stack) {
-            if (index >= SIZE && index < MENU_SIZE) return true;
+            if (index > SADDLE_INDEX && index < CONTAINER_INDEX) {
+                return entity instanceof LivingEntity living && CompanionContainer.canStoreCargo(living);
+            }
+            if (index == CONTAINER_INDEX && entity instanceof LivingEntity living) {
+                return CompanionContainer.canPlace(living, stack);
+            }
+            if (index == SADDLE_INDEX && entity instanceof LivingEntity living) {
+                return CompanionRiding.isRidingEquipment(living, stack);
+            }
             if (index == MAINHAND) return !stack.isEmpty();
             if (index == OFFHAND) return !stack.isEmpty();
             if (index >= HEAD && index <= FEET && entity instanceof LivingEntity living) {
@@ -233,7 +260,7 @@ public final class CompanionEquipment {
         @Override public boolean stillValid(Player player) {
             return entity instanceof LivingEntity living && living.isAlive()
                     && living instanceof net.minecraft.world.entity.Entity e
-                    && e.level() == player.level() && e.distanceToSqr(player) <= 8.0D * 8.0D
+                    && e.level() == player.level()
                     && CompanionAttachments.get(living).map(state -> state.ownerId().equals(player.getUUID()) && !state.dead()).orElse(false);
         }
     }

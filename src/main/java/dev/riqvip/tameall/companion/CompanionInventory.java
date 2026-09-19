@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import java.util.ArrayList;
@@ -28,16 +29,34 @@ public final class CompanionInventory {
         return copy;
     }
 
+    public static boolean hasAnyItems(Entity entity) {
+        for (ItemStack stack : read(entity)) if (!stack.isEmpty()) return true;
+        return false;
+    }
+
     public static void write(Entity entity, List<ItemStack> items) {
         if (!(entity instanceof AttachmentTarget target)) return;
         ArrayList<ItemStack> copy = new ArrayList<>(SIZE);
         for (int i = 0; i < SIZE; i++) copy.add(i < items.size() ? items.get(i).copy() : ItemStack.EMPTY);
-        target.setAttached(CARGO, List.copyOf(copy));
+        if (hasAny(copy)) target.setAttached(CARGO, List.copyOf(copy));
+        else target.removeAttached(CARGO);
+    }
+
+    public static void clear(Entity entity) {
+        if (entity instanceof AttachmentTarget target) target.removeAttached(CARGO);
+    }
+
+    private static boolean hasAny(List<ItemStack> items) {
+        for (ItemStack stack : items) if (stack != null && !stack.isEmpty()) return true;
+        return false;
     }
 
     /** Inserts as much as possible into cargo and returns an independent remainder. */
     public static ItemStack insert(Entity entity, ItemStack incoming) {
         if (incoming == null || incoming.isEmpty()) return ItemStack.EMPTY;
+        if (entity instanceof LivingEntity living && !CompanionContainer.canStoreCargo(living)) {
+            return incoming.copy();
+        }
         List<ItemStack> cargo = read(entity);
         ItemStack remainder = incoming.copy();
         boolean changed = false;
@@ -63,7 +82,7 @@ public final class CompanionInventory {
     /** Drops and clears cargo before spawning stacks, making the operation one-shot. */
     public static void dropAndClear(Entity entity, ServerLevel level) {
         List<ItemStack> items = read(entity);
-        if (entity instanceof AttachmentTarget target) target.setAttached(CARGO, List.of());
+        clear(entity);
         for (ItemStack stack : items) if (!stack.isEmpty()) entity.spawnAtLocation(level, stack.copy());
     }
 
@@ -124,7 +143,6 @@ public final class CompanionInventory {
 
         @Override public boolean stillValid(net.minecraft.world.entity.player.Player player) {
             return entity.isAlive() && entity.level() == player.level()
-                    && entity.distanceToSqr(player) <= 8.0D * 8.0D
                     && CompanionAttachments.get(entity)
                     .map(state -> state.ownerId().equals(player.getUUID()) && !state.dead())
                     .orElse(false);

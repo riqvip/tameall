@@ -6,6 +6,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.Set;
+import java.util.List;
 
 /** Mojang codecs for persistent companion state and roster snapshots. */
 public final class CompanionCodecs {
@@ -106,7 +107,10 @@ public final class CompanionCodecs {
                     .forGetter(CompanionSettings::collectXpForMending),
             XP_RADIUS.optionalFieldOf("xp_radius", CompanionSettings.DEFAULT_XP_RADIUS)
                     .forGetter(CompanionSettings::xpRadius),
-            Codec.BOOL.optionalFieldOf("use_durability", true).forGetter(CompanionSettings::useDurability)
+            Codec.BOOL.optionalFieldOf("use_durability", true).forGetter(CompanionSettings::useDurability),
+            Codec.BOOL.optionalFieldOf("saddle_required", true).forGetter(CompanionSettings::saddleRequired),
+            Codec.BOOL.optionalFieldOf("attack_while_mounted", false).forGetter(CompanionSettings::attackWhileMounted),
+            Codec.BOOL.optionalFieldOf("cargo_container_required", true).forGetter(CompanionSettings::cargoContainerRequired)
     ).apply(instance, CompanionSettings::new));
 
     public static final Codec<CompanionState> STATE = RecordCodecBuilder.create(instance -> instance.group(
@@ -134,11 +138,14 @@ public final class CompanionCodecs {
             enumCodec(CompanionPresence.class).optionalFieldOf("presence")
                     .forGetter(record -> Optional.of(record.presence())),
             Codec.LONG.fieldOf("last_seen_tick").forGetter(BondRecord::lastSeenTick),
-            STATE.fieldOf("snapshot").forGetter(BondRecord::snapshot)
-    ).apply(instance, (bond, owner, type, entity, dimension, position, dead, presence, tick, snapshot) ->
+            STATE.fieldOf("snapshot").forGetter(BondRecord::snapshot),
+            TARGET_SELECTION.optionalFieldOf("target_selection")
+                    .forGetter(record -> Optional.of(record.targetSelection()))
+    ).apply(instance, (bond, owner, type, entity, dimension, position, dead, presence, tick, snapshot, targets) ->
             new BondRecord(bond, owner, type, entity.orElse(null), dimension.orElse(null),
                     position.orElse(null), dead,
-                    presence.orElse(dead ? CompanionPresence.DEAD : CompanionPresence.UNKNOWN), tick, snapshot)));
+                    presence.orElse(dead ? CompanionPresence.DEAD : CompanionPresence.UNKNOWN), tick, snapshot,
+                    targets.orElseGet(() -> TargetSelection.fromLegacy(snapshot.settings().targetFilter())))));
 
     public static final Codec<GolemProvocation> GOLEM_PROVOCATION = RecordCodecBuilder.create(instance -> instance.group(
             UUID_CODEC.fieldOf("owner_id").forGetter(GolemProvocation::ownerId),

@@ -15,7 +15,10 @@ public record CompanionSettings(CompanionMode mode,
                                 double pickupRadius,
                                 boolean collectXpForMending,
                                 double xpRadius,
-                                boolean useDurability) {
+                                boolean useDurability,
+                                boolean saddleRequired,
+                                boolean attackWhileMounted,
+                                boolean cargoContainerRequired) {
     public static final int MIN_GUARD_RADIUS = 4;
     public static final int DEFAULT_GUARD_RADIUS = 16;
     /** Shared Follow/Guard operating area; the UI deliberately accepts three digits. */
@@ -50,14 +53,16 @@ public record CompanionSettings(CompanionMode mode,
                              TargetFilter targetFilter, TeleportMode teleportMode, boolean pickupItems,
                              double pickupRadius, boolean useDurability) {
         this(mode, stance, magic, nameplate, healthDisplay, guardRadius, targetFilter,
-                teleportMode, pickupItems, pickupRadius, false, DEFAULT_XP_RADIUS, useDurability);
+                teleportMode, pickupItems, pickupRadius, false, DEFAULT_XP_RADIUS, useDurability,
+                true, false, true);
     }
 
     public static CompanionSettings defaults() {
         return new CompanionSettings(CompanionMode.FOLLOW, CombatStance.ASSIST,
                 MagicToggles.DEFAULT, NameplateMode.WHEN_TARGETED,
                 HealthDisplayMode.ON, DEFAULT_GUARD_RADIUS, TargetFilter.HOSTILE_ONLY,
-                TeleportMode.OUTSIDE_AREA, false, DEFAULT_PICKUP_RADIUS, false, DEFAULT_XP_RADIUS, true);
+                TeleportMode.OUTSIDE_AREA, false, DEFAULT_PICKUP_RADIUS, false, DEFAULT_XP_RADIUS, true,
+                true, false, true);
     }
 
     public int areaRadius() { return guardRadius; }
@@ -65,75 +70,108 @@ public record CompanionSettings(CompanionMode mode,
 
     public CompanionSettings withMode(CompanionMode value) {
         return copy(value, stance, magic, nameplate, healthDisplay, guardRadius, targetFilter,
-                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability);
+                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
     }
 
     public CompanionSettings withStance(CombatStance value) {
         return copy(mode, value, magic, nameplate, healthDisplay, guardRadius, targetFilter,
-                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability);
+                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
     }
 
     public CompanionSettings withMagic(MagicToggles value) {
         return copy(mode, stance, value, nameplate, healthDisplay, guardRadius, targetFilter,
-                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability);
+                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
     }
 
     public CompanionSettings withNameplate(NameplateMode value) {
         return copy(mode, stance, magic, value, healthDisplay, guardRadius, targetFilter,
-                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability);
+                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
     }
 
     public CompanionSettings withHealthDisplay(HealthDisplayMode value) {
         return copy(mode, stance, magic, nameplate, value, guardRadius, targetFilter,
-                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability);
+                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
     }
 
     public CompanionSettings withGuardRadius(int value) {
         return copy(mode, stance, magic, nameplate, healthDisplay, value, targetFilter,
-                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability);
+                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
     }
 
     public CompanionSettings withTargetFilter(TargetFilter value) {
         return copy(mode, stance, magic, nameplate, healthDisplay, guardRadius, value,
-                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability);
+                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
     }
 
     public CompanionSettings withTeleportMode(TeleportMode value) {
         return copy(mode, stance, magic, nameplate, healthDisplay, guardRadius, targetFilter,
-                value, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability);
+                value, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
     }
 
     public CompanionSettings withPickupItems(boolean value) {
         return copy(mode, stance, magic, nameplate, healthDisplay, guardRadius, targetFilter,
-                teleportMode, value, pickupRadius, collectXpForMending, xpRadius, useDurability);
+                teleportMode, value, pickupRadius, collectXpForMending, xpRadius, useDurability,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
     }
 
     public CompanionSettings withPickupRadius(double value) {
         return copy(mode, stance, magic, nameplate, healthDisplay, guardRadius, targetFilter,
-                teleportMode, pickupItems, value, collectXpForMending, xpRadius, useDurability);
+                teleportMode, pickupItems, value, collectXpForMending, xpRadius, useDurability,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
     }
 
     public CompanionSettings withCollectXpForMending(boolean value) {
         return copy(mode, stance, magic, nameplate, healthDisplay, guardRadius, targetFilter,
-                teleportMode, pickupItems, pickupRadius, value, xpRadius, useDurability);
+                teleportMode, pickupItems, pickupRadius, value, xpRadius, useDurability,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
     }
 
     public CompanionSettings withXpRadius(double value) {
         return copy(mode, stance, magic, nameplate, healthDisplay, guardRadius, targetFilter,
-                teleportMode, pickupItems, pickupRadius, collectXpForMending, value, useDurability);
+                teleportMode, pickupItems, pickupRadius, collectXpForMending, value, useDurability,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
     }
 
     public CompanionSettings withUseDurability(boolean value) {
         return copy(mode, stance, magic, nameplate, healthDisplay, guardRadius, targetFilter,
-                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, value);
+                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, value,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
+    }
+
+    public CompanionSettings withSaddleRequired(boolean value) {
+        return copy(mode, stance, magic, nameplate, healthDisplay, guardRadius, targetFilter,
+                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability,
+                value, attackWhileMounted, cargoContainerRequired);
+    }
+
+    public CompanionSettings withAttackWhileMounted(boolean value) {
+        return copy(mode, stance, magic, nameplate, healthDisplay, guardRadius, targetFilter,
+                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability,
+                saddleRequired, value, cargoContainerRequired);
+    }
+
+    public CompanionSettings withCargoContainerRequired(boolean value) {
+        return copy(mode, stance, magic, nameplate, healthDisplay, guardRadius, targetFilter,
+                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability,
+                saddleRequired, attackWhileMounted, value);
     }
 
     private static CompanionSettings copy(CompanionMode mode, CombatStance stance, MagicToggles magic,
                                           NameplateMode nameplate, HealthDisplayMode healthDisplay,
                                           int guardRadius, TargetFilter targetFilter, TeleportMode teleportMode,
                                           boolean pickupItems, double pickupRadius, boolean collectXpForMending,
-                                          double xpRadius, boolean useDurability) {
+                                          double xpRadius, boolean useDurability, boolean saddleRequired,
+                                          boolean attackWhileMounted, boolean cargoContainerRequired) {
         return new CompanionSettings(mode, stance, magic, nameplate, healthDisplay, guardRadius, targetFilter,
-                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability);
+                teleportMode, pickupItems, pickupRadius, collectXpForMending, xpRadius, useDurability,
+                saddleRequired, attackWhileMounted, cargoContainerRequired);
     }
 }

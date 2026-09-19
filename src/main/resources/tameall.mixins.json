@@ -9,6 +9,11 @@
     "LivingEntityMixin",
     "LivingEntityInvoker",
     "MobMixin",
+    "CompanionMoveControlMixin",
+    "CompanionJumpControlMixin",
+    "CompanionMountedAiMixin",
+    "CompanionEndermanMixin",
+    "CompanionShulkerMixin",
     "CompanionAttackOverridesMixin",
     "CreeperMixin",
     "GolemMixin",
@@ -21,7 +26,14 @@
     "OcelotAttackGoalMixin",
     "RangedAttackGoalMixin",
     "RangedBowAttackGoalMixin",
-    "RangedCrossbowAttackGoalMixin"
+    "RangedCrossbowAttackGoalMixin",
+    "CompanionRidingMixin",
+    "CompanionPassengerPositionMixin",
+    "CompanionPassengerAccessMixin",
+    "CompanionRidingMovementMixin",
+    "CompanionPathNavigationMixin",
+    "CompanionTamableAnimalMixin",
+    "CompanionHorseTamingMixin"
   ],
   "injectors": {
     "defaultRequire": 1

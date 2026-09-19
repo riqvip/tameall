@@ -14,9 +14,14 @@ import dev.riqvip.tameall.companion.TargetMatcher;
 import dev.riqvip.tameall.companion.TargetSelection;
 import dev.riqvip.tameall.companion.TargetCatalog;
 import dev.riqvip.tameall.companion.TamingPolicy;
+import dev.riqvip.tameall.companion.CompanionRiding;
+import dev.riqvip.tameall.companion.CompanionContainer;
+import dev.riqvip.tameall.companion.CompanionInventory;
+import net.minecraft.core.component.DataComponents;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -30,6 +35,10 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.entity.ExperienceOrb;
 import java.util.UUID;
+import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.level.pathfinder.Node;
+import net.minecraft.world.level.pathfinder.Path;
+import java.util.List;
 
 /** Small server GameTests for universal bonding and explicit combat policy. */
 public final class TameAllGameTests {
@@ -44,6 +53,99 @@ public final class TameAllGameTests {
         helper.assertTrue(state.settings().areaRadius() == 16, "area default changed");
         helper.assertTrue(state.settings().pickupRadius() <= 16.0D, "pickup radius exceeds cap");
         helper.assertFalse(state.settings().collectXpForMending(), "Mending XP defaulted on");
+        helper.assertTrue(state.settings().saddleRequired(), "mount saddle requirement defaulted off");
+        helper.assertFalse(state.settings().attackWhileMounted(), "mounted attack defaulted on");
+        helper.assertTrue(state.settings().cargoContainerRequired(), "cargo container requirement defaulted off");
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 1)
+    public void bondedMountRequiresSaddleByDefault(GameTestHelper helper) {
+        var owner = helper.makeMockServerPlayerInLevel();
+        Mob zombie = EntityTypes.ZOMBIE.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        helper.assertTrue(zombie != null, "mount entity could not be created");
+        helper.getLevel().addFreshEntity(zombie);
+        CompanionState state = CompanionState.newlyBonded(owner.getUUID(), "minecraft:zombie");
+        CompanionAttachments.set(zombie, state);
+        helper.assertFalse(CompanionRiding.canMount(owner, zombie, state), "unsaddled pet accepted a mount");
+        zombie.setItemSlot(EquipmentSlot.SADDLE, new ItemStack(Items.SADDLE));
+        helper.assertTrue(CompanionRiding.canMount(owner, zombie, state), "saddled pet rejected its owner");
+        helper.assertTrue(owner.startRiding(zombie, true, false), "owner could not mount bonded pet");
+        helper.assertTrue(zombie.getFirstPassenger() == owner, "mount passenger was not attached");
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 1)
+    public void cargoContainerPolicyAndShulkerPacking(GameTestHelper helper) {
+        var owner = helper.makeMockServerPlayerInLevel();
+        Mob zombie = EntityTypes.ZOMBIE.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        helper.assertTrue(zombie != null, "cargo test entity could not be created");
+        helper.getLevel().addFreshEntity(zombie);
+        CompanionState state = CompanionState.newlyBonded(owner.getUUID(), "minecraft:zombie");
+        CompanionAttachments.set(zombie, state);
+        helper.assertFalse(CompanionContainer.canStoreCargo(zombie), "cargo was available without a container");
+        CompanionContainer.attach(zombie, new ItemStack(Items.CHEST));
+        helper.assertTrue(CompanionContainer.canStoreCargo(zombie), "chest did not unlock cargo");
+        CompanionInventory.write(zombie, List.of(new ItemStack(Items.DIAMOND)));
+        CompanionContainer.remove(zombie, helper.getLevel());
+        helper.assertFalse(CompanionInventory.hasAnyItems(zombie), "removing a chest did not eject cargo");
+
+        state = state.withSettings(state.settings().withCargoContainerRequired(false));
+        CompanionAttachments.set(zombie, state);
+        helper.assertTrue(CompanionContainer.canStoreCargo(zombie), "permission waiver did not unlock cargo");
+        CompanionContainer.attach(zombie, new ItemStack(Items.SHULKER_BOX));
+        CompanionInventory.write(zombie, List.of(new ItemStack(Items.DIAMOND)));
+        helper.assertTrue(CompanionContainer.displayStack(zombie).get(DataComponents.CONTAINER) != null,
+                "shulker container did not expose packed cargo");
+        CompanionContainer.remove(zombie, helper.getLevel());
+        helper.assertFalse(CompanionInventory.hasAnyItems(zombie), "shulker removal left duplicate cargo outside the box");
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 20)
+    public void addedGroundMountAcceptsOwnerInput(GameTestHelper helper) {
+        var owner = helper.makeMockServerPlayerInLevel();
+        owner.setPos(0.5D, 2.0D, 0.5D);
+        Mob zombie = EntityTypes.ZOMBIE.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        helper.assertTrue(zombie != null, "movement mount could not be created");
+        zombie.setPos(0.5D, 2.0D, 2.5D);
+        zombie.setNoAi(true);
+        zombie.setNoGravity(true);
+        zombie.setItemSlot(EquipmentSlot.SADDLE, new ItemStack(Items.SADDLE));
+        helper.getLevel().addFreshEntity(zombie);
+        CompanionState state = CompanionState.newlyBonded(owner.getUUID(), "minecraft:zombie");
+        CompanionAttachments.set(zombie, state);
+        helper.assertTrue(owner.startRiding(zombie, true, false), "owner did not mount movement pet");
+        helper.assertTrue(CompanionRiding.isControlled(zombie), "server did not recognize owner controller");
+        helper.assertTrue(zombie.getControllingPassenger() == owner, "vanilla controlling passenger hook did not resolve owner");
+        owner.setYRot(0.0F);
+        owner.setLastClientInput(new Input(true, false, false, false, false, false, false));
+        helper.assertTrue(CompanionRiding.riddenInput(zombie, owner, net.minecraft.world.phys.Vec3.ZERO).z > 0.5D,
+                "riding profile did not decode forward input");
+        helper.assertTrue(CompanionRiding.riddenSpeed(zombie, 0.0F) > 0.0F,
+                "riding profile did not resolve movement speed");
+        helper.runAtTickTime(10, () -> {
+            helper.assertTrue(CompanionRiding.riddenInput(zombie, owner, net.minecraft.world.phys.Vec3.ZERO).z > 0.5D,
+                    "added ground mount stopped consuming forward input");
+            helper.assertTrue(zombie.getFirstPassenger() == owner, "mount lost its owner passenger");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 1)
+    public void ridingProfilesUseSpeciesAdapters(GameTestHelper helper) {
+        Mob drowned = EntityTypes.DROWNED.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        Mob llama = EntityTypes.LLAMA.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        helper.assertTrue(drowned != null && llama != null, "profile fixtures could not be created");
+        helper.assertTrue(CompanionRiding.profile(drowned) == CompanionRiding.RidingProfile.AMPHIBIOUS,
+                "drowned did not resolve to amphibious riding");
+        helper.assertTrue(CompanionRiding.profile(llama) == CompanionRiding.RidingProfile.GROUND,
+                "llama incorrectly used a native profile");
+        helper.assertTrue(CompanionRiding.riddenSpeed(drowned, 0.0F) > 0.0F,
+                "amphibious profile did not resolve movement speed");
+        helper.assertTrue(CompanionRiding.ridingEquipmentSlot(
+                EntityTypes.HAPPY_GHAST.create(helper.getLevel(), EntitySpawnReason.COMMAND))
+                == EquipmentSlot.BODY, "Happy Ghast did not resolve a body harness slot");
         helper.succeed();
     }
 
@@ -272,6 +374,129 @@ public final class TameAllGameTests {
             helper.assertTrue(golem.getTarget() == pet, "provoked golem did not retain the pet target");
         }
         helper.succeed();
+    }
+
+    @GameTest(maxTicks = 80)
+    public void bondedIronGolemExecutesManagedAssistAttack(GameTestHelper helper) {
+        var owner = helper.makeMockServerPlayerInLevel();
+        owner.setPos(0.5D, 2.0D, 0.5D);
+        Mob golem = EntityTypes.IRON_GOLEM.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        Mob target = EntityTypes.ZOMBIE.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        helper.assertTrue(golem != null && target != null, "bonded golem attack entities could not be created");
+        golem.setPos(1.5D, 2.0D, 1.5D);
+        target.setPos(3.0D, 2.0D, 1.5D);
+        golem.setNoGravity(true);
+        target.setNoAi(true);
+        target.setNoGravity(true);
+        helper.getLevel().addFreshEntity(golem);
+        helper.getLevel().addFreshEntity(target);
+        CompanionState state = CompanionState.newlyBonded(owner.getUUID(), "minecraft:iron_golem");
+        state = state.withSettings(state.settings().withStance(CombatStance.ASSIST));
+        CompanionAttachments.set(golem, state);
+        owner.setLastHurtMob(target);
+        CompanionCombat.assignTarget(golem, target);
+        float before = target.getHealth();
+        helper.runAtTickTime(10, () -> helper.assertTrue(golem.getTarget() == target,
+                "bonded iron golem did not acquire the managed Assist target"));
+        helper.runAtTickTime(60, () -> {
+            helper.assertTrue(target.getHealth() < before,
+                    "bonded iron golem did not execute its managed Assist attack");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 1)
+    public void neutralCompanionSanitizePreservesFollowNavigation(GameTestHelper helper) {
+        var owner = helper.makeMockServerPlayerInLevel();
+        Mob golem = EntityTypes.IRON_GOLEM.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        helper.assertTrue(golem != null, "follow navigation golem could not be created");
+        golem.setPos(1.5D, 2.0D, 1.5D);
+        golem.setNoGravity(true);
+        helper.getLevel().addFreshEntity(golem);
+        CompanionAttachments.set(golem, CompanionState.newlyBonded(owner.getUUID(), "minecraft:iron_golem"));
+        Path followPath = new Path(List.of(new Node(8, 2, 1)), new BlockPos(8, 2, 1), false);
+        boolean started = golem.getNavigation().moveTo(followPath, 1.0D);
+        helper.assertTrue(started, "iron golem follow path could not be started");
+        helper.assertFalse(golem.getNavigation().isDone(), "iron golem follow path was already complete");
+        CompanionCombat.sanitize(golem);
+        helper.assertFalse(golem.getNavigation().isDone(),
+                "neutral companion sanitization stopped follow navigation");
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 45)
+    public void mountedZombieExecutesNativeMeleeAttack(GameTestHelper helper) {
+        var owner = helper.makeMockServerPlayerInLevel();
+        owner.setPos(0.5D, 2.0D, 0.5D);
+        Mob zombie = EntityTypes.ZOMBIE.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        Mob target = EntityTypes.COW.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        helper.assertTrue(zombie != null && target != null, "mounted melee entities could not be created");
+        zombie.setPos(1.5D, 2.0D, 0.5D);
+        target.setPos(2.3D, 2.0D, 0.5D);
+        zombie.setItemSlot(EquipmentSlot.SADDLE, new ItemStack(Items.SADDLE));
+        target.setNoAi(true);
+        target.setNoGravity(true);
+        helper.getLevel().addFreshEntity(zombie);
+        helper.getLevel().addFreshEntity(target);
+        CompanionState state = CompanionState.newlyBonded(owner.getUUID(), "minecraft:zombie");
+        state = state.withSettings(state.settings().withStance(CombatStance.ASSIST)
+                .withAttackWhileMounted(true));
+        CompanionAttachments.set(zombie, state);
+        owner.setLastHurtMob(target);
+        helper.assertTrue(owner.startRiding(zombie, true, false), "owner did not mount attack test zombie");
+        float before = target.getHealth();
+        helper.runAtTickTime(35, () -> {
+            helper.assertTrue(target.getHealth() < before,
+                    "mounted zombie did not execute its native melee attack");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 100)
+    public void mountedDrownedExecutesNativeTridentAttack(GameTestHelper helper) {
+        var owner = helper.makeMockServerPlayerInLevel();
+        owner.setPos(0.5D, 2.0D, 0.5D);
+        Mob drowned = EntityTypes.DROWNED.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        Mob target = EntityTypes.SKELETON.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        helper.assertTrue(drowned != null && target != null, "mounted ranged entities could not be created");
+        drowned.setPos(1.5D, 2.0D, 0.5D);
+        target.setPos(6.0D, 2.0D, 0.5D);
+        drowned.setItemSlot(EquipmentSlot.SADDLE, new ItemStack(Items.SADDLE));
+        drowned.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.TRIDENT));
+        target.setNoAi(true);
+        target.setNoGravity(true);
+        helper.getLevel().addFreshEntity(drowned);
+        helper.getLevel().addFreshEntity(target);
+        CompanionState state = CompanionState.newlyBonded(owner.getUUID(), "minecraft:drowned");
+        state = state.withSettings(state.settings().withStance(CombatStance.DEFEND_AREA)
+                .withAttackWhileMounted(true));
+        CompanionAttachments.set(drowned, state);
+        helper.assertTrue(owner.startRiding(drowned, true, false), "owner did not mount ranged test drowned");
+        float before = target.getHealth();
+        helper.runAtTickTime(90, () -> {
+            helper.assertTrue(target.getHealth() < before,
+                    "mounted drowned did not execute its native trident attack");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 45)
+    public void rangedGoalStopsAfterCachedTargetClears(GameTestHelper helper) {
+        Mob snow = EntityTypes.SNOW_GOLEM.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        Mob target = EntityTypes.COW.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+        helper.assertTrue(snow != null && target != null, "ranged crash fixtures could not be created");
+        snow.setPos(1.5D, 2.0D, 1.5D);
+        target.setPos(5.0D, 2.0D, 1.5D);
+        target.setNoAi(true);
+        target.setNoGravity(true);
+        helper.getLevel().addFreshEntity(snow);
+        helper.getLevel().addFreshEntity(target);
+        snow.setTarget(target);
+        helper.runAtTickTime(8, () -> {
+            snow.setTarget(null);
+            helper.assertTrue(snow.getTarget() == null, "ranged target was not cleared for regression");
+        });
+        helper.runAtTickTime(35, helper::succeed);
     }
 
     @GameTest(maxTicks = 1)

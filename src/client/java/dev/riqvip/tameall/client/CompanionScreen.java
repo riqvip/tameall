@@ -9,6 +9,7 @@ import dev.riqvip.tameall.companion.TeleportMode;
 import dev.riqvip.tameall.menu.CompanionAction;
 import dev.riqvip.tameall.menu.CompanionActionRequest;
 import dev.riqvip.tameall.menu.CompanionMenuSnapshot;
+import dev.riqvip.tameall.companion.CompanionNames;
 import dev.riqvip.tameall.network.CompanionActionPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -26,7 +27,7 @@ public final class CompanionScreen extends Screen {
     private static final int MIN_WIDTH = 360;
     private static final int MAX_WIDTH = 420;
     private static final int MIN_HEIGHT = 220;
-    private static final int MAX_HEIGHT = 250;
+    private static final int MAX_HEIGHT = 286;
     private static final int CONTENT_TOP = 58;
 
     private enum Tab { OVERVIEW, MOVEMENT, COLLECTION, ABILITIES, INVENTORY }
@@ -44,6 +45,8 @@ public final class CompanionScreen extends Screen {
     private int contentLeft;
     private String savedName;
     private boolean nameDirty;
+    private int movementScroll;
+    private boolean draggingMovementScrollbar;
 
     public CompanionScreen(CompanionMenuSnapshot snapshot) {
         super(Component.translatable("screen.tameall.companion"));
@@ -58,6 +61,7 @@ public final class CompanionScreen extends Screen {
         left = (width - widthPanel) / 2;
         top = (height - heightPanel) / 2;
         contentLeft = left + 112;
+        movementScroll = Math.clamp(movementScroll, 0, movementMaxScroll());
         clearWidgets();
         addButton(Component.literal("×"), left + widthPanel - 24, top + 6, 18, 18, this::onClose);
         int y = top + 47;
@@ -72,6 +76,7 @@ public final class CompanionScreen extends Screen {
         else if (tab == Tab.MOVEMENT) buildMovement();
         else if (tab == Tab.COLLECTION) buildCollection();
         else if (tab == Tab.ABILITIES) buildAbilities();
+        else if (tab == Tab.INVENTORY) buildInventoryPage();
         else buildInventoryPage();
     }
 
@@ -102,31 +107,65 @@ public final class CompanionScreen extends Screen {
     }
 
     private void buildMovement() {
-        addButton(Component.literal(modeLabel()), contentLeft, top + CONTENT_TOP, widthPanel - 124, 20,
+        movementButton(Component.literal(modeLabel()), 0,
                 this::cycleMode).setTooltip(Tooltip.create(Component.literal(
                 "Follow, Stay, or Guard determines how the companion moves inside its shared area.")));
-        addButton(Component.literal(stanceLabel()), contentLeft, top + CONTENT_TOP + 26, widthPanel - 124, 20,
+        movementButton(Component.literal(stanceLabel()), 26,
                 this::cycleStance).setTooltip(Tooltip.create(Component.literal(
                 "Passive never attacks, Assist follows combat signals, and Defend Area scans selected targets.")));
-        areaRadius = new EditBox(font, contentLeft, top + CONTENT_TOP + 52, 76, 20, Component.literal("Area radius"));
+        areaRadius = new EditBox(font, contentLeft, movementY(52), 76, 20, Component.literal("Area radius"));
         areaRadius.setMaxLength(3);
         styleEditBox(areaRadius, "Shared operating area radius, from 4 to 999 blocks.");
         areaRadius.setValue(Integer.toString(snapshot.settings().areaRadius()));
         areaRadius.setHint(Component.literal("4-999"));
+        areaRadius.setVisible(movementVisible(areaRadius.getY(), 20));
         addRenderableWidget(areaRadius);
-        addButton(Component.literal("Save area"), contentLeft + 82, top + CONTENT_TOP + 52, widthPanel - 206, 20,
+        movementButton(Component.literal("Save area"), 52, contentLeft + 82, widthPanel - 206,
                 this::applyAreaRadius).setTooltip(Tooltip.create(Component.literal("Apply the area radius.")));
-        addButton(Component.literal(teleportLabel()), contentLeft, top + CONTENT_TOP + 78, widthPanel - 124, 20,
+        movementButton(Component.literal(teleportLabel()), 78,
                 this::cycleTeleport).setTooltip(Tooltip.create(Component.literal(
                 "Choose when the companion may teleport back to its operating area.")));
-        addButton(Component.literal("Set guard point"), contentLeft, top + CONTENT_TOP + 104, widthPanel - 124, 20,
+        movementButton(Component.literal("Set guard point"), 104,
                 () -> send(CompanionActionRequest.command(snapshot.bondId(), snapshot.revision(),
                         CompanionAction.SET_GUARD_ANCHOR))).setTooltip(Tooltip.create(Component.literal(
                 "Save your current position as the Guard and Stay anchor.")));
-        addButton(Component.literal("Edit targets"), contentLeft, top + CONTENT_TOP + 130, widthPanel - 124, 20,
+        movementButton(Component.literal("Edit targets"), 130,
                 () -> send(CompanionActionRequest.command(snapshot.bondId(), snapshot.revision(),
                         CompanionAction.OPEN_TARGET_SELECTOR))).setTooltip(Tooltip.create(Component.literal(
                 "Choose multiple target groups or individual living entities.")));
+        DarkButton saddle = movementButton(Component.literal(saddleLabel()), 156,
+                () -> toggle(CompanionAction.SET_SADDLE_REQUIRED,
+                        !snapshot.settings().saddleRequired()));
+        saddle.active = snapshot.cheatsAllowed() || !snapshot.settings().saddleRequired();
+        saddle.setTooltip(Tooltip.create(Component.literal(snapshot.cheatsAllowed()
+                ? "Require a saddle before mounting this companion."
+                : "Removing the saddle requirement needs permission level 2.")));
+        movementButton(Component.literal(mountedAttackLabel()), 182,
+                () -> toggle(CompanionAction.SET_ATTACK_WHILE_MOUNTED,
+                        !snapshot.settings().attackWhileMounted())).setTooltip(Tooltip.create(Component.literal(
+                "When enabled, the companion attacks eligible targets within reach while you steer it.")));
+    }
+
+    private DarkButton movementButton(Component label, int offset, Runnable action) {
+        return movementButton(label, offset, contentLeft, widthPanel - 124, action);
+    }
+
+    private DarkButton movementButton(Component label, int offset, int x, int buttonWidth, Runnable action) {
+        DarkButton button = addButton(label, x, movementY(offset), buttonWidth, 20, action);
+        button.visible = movementVisible(button.getY(), 20);
+        return button;
+    }
+
+    private int movementY(int offset) { return top + CONTENT_TOP + offset - movementScroll; }
+
+    private boolean movementVisible(int y, int height) {
+        return y >= top + CONTENT_TOP && y + height <= top + heightPanel - 14;
+    }
+
+    private int movementMaxScroll() {
+        int contentBottom = top + CONTENT_TOP + 202;
+        int viewportBottom = top + heightPanel - 14;
+        return Math.max(0, contentBottom - viewportBottom);
     }
 
     private void buildCollection() {
@@ -159,6 +198,14 @@ public final class CompanionScreen extends Screen {
         durability.setTooltip(Tooltip.create(Component.literal(
                 "When enabled, the companion's equipment uses normal durability; disabling this protection requires permission level 2.")));
         durability.active = snapshot.cheatsAllowed() || !snapshot.settings().useDurability();
+        DarkButton cargo = addButton(Component.literal(cargoContainerLabel()), contentLeft,
+                top + CONTENT_TOP + 130, widthPanel - 124, 20,
+                () -> toggle(CompanionAction.SET_CARGO_CONTAINER_REQUIRED,
+                        !snapshot.settings().cargoContainerRequired()));
+        cargo.active = snapshot.cheatsAllowed() || !snapshot.settings().cargoContainerRequired();
+        cargo.setTooltip(Tooltip.create(Component.literal(snapshot.cheatsAllowed()
+                ? "Require a chest, barrel, trapped chest, or shulker box before using cargo."
+                : "Using cargo without a container requires permission level 2.")));
     }
 
     private void buildAbilities() {
@@ -243,6 +290,11 @@ public final class CompanionScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (tab == Tab.MOVEMENT && event.button() == 0 && movementScrollBarContains(event.x(), event.y())) {
+            draggingMovementScrollbar = true;
+            updateMovementScroll(event.y());
+            return true;
+        }
         boolean wasEditing = rename != null && rename.isFocused();
         boolean insideRename = rename != null && event.x() >= rename.getX() && event.x() <= rename.getRight()
                 && event.y() >= rename.getY() && event.y() <= rename.getBottom();
@@ -252,6 +304,47 @@ public final class CompanionScreen extends Screen {
         if (wasEditing && !insideRename) saveNameIfChanged();
         boolean handled = super.mouseClicked(event, doubleClick);
         return handled;
+    }
+
+    @Override
+    public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
+        if (draggingMovementScrollbar) {
+            updateMovementScroll(event.y());
+            return true;
+        }
+        return super.mouseDragged(event, dragX, dragY);
+    }
+
+    @Override
+    public boolean mouseReleased(MouseButtonEvent event) {
+        draggingMovementScrollbar = false;
+        return super.mouseReleased(event);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (tab == Tab.MOVEMENT && scrollY != 0.0D
+                && mouseX >= left + 100 && mouseX <= left + widthPanel
+                && mouseY >= top + CONTENT_TOP && mouseY <= top + heightPanel - 14) {
+            movementScroll = Math.clamp(movementScroll + (scrollY < 0.0D ? 18 : -18),
+                    0, movementMaxScroll());
+            rebuildWidgets();
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    }
+
+    private boolean movementScrollBarContains(double x, double y) {
+        return movementMaxScroll() > 0 && x >= left + widthPanel - 10 && x <= left + widthPanel - 3
+                && y >= top + CONTENT_TOP && y <= top + heightPanel - 14;
+    }
+
+    private void updateMovementScroll(double y) {
+        int max = movementMaxScroll();
+        int trackTop = top + CONTENT_TOP;
+        int trackHeight = Math.max(1, top + heightPanel - 14 - trackTop);
+        movementScroll = Math.clamp((int) ((y - trackTop) * max / (double) trackHeight), 0, max);
+        rebuildWidgets();
     }
 
     @Override
@@ -346,6 +439,9 @@ public final class CompanionScreen extends Screen {
     private String pickupLabel() { return "Pickup items: " + onOff(snapshot.settings().pickupItems()); }
     private String xpLabel() { return "Collect XP for Mending: " + onOff(snapshot.settings().collectXpForMending()); }
     private String durabilityLabel() { return "Item durability: " + onOff(snapshot.settings().useDurability()); }
+    private String cargoContainerLabel() { return "Cargo container required: " + onOff(snapshot.settings().cargoContainerRequired()); }
+    private String saddleLabel() { return "Saddle required: " + onOff(snapshot.settings().saddleRequired()); }
+    private String mountedAttackLabel() { return "Attack while mounted: " + onOff(snapshot.settings().attackWhileMounted()); }
     private String sunlightLabel() { return "Sun protection"; }
     private String drowningLabel() { return "Drowning protection"; }
     private String reusableLabel() { return "Reusable explosions"; }
@@ -358,8 +454,7 @@ public final class CompanionScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
         CompanionUiStyle.panel(g, left, top, widthPanel, heightPanel);
         g.text(font, title, left + 12, top + 12, CompanionUiStyle.TEXT, false);
-        String name = snapshot.displayName() == null || snapshot.displayName().isBlank()
-                ? snapshot.creatureType() : snapshot.displayName();
+        String name = CompanionNames.displayName(snapshot.displayName(), snapshot.creatureType());
         g.text(font, Component.literal(font.plainSubstrByWidth(name, 94)), left + 8, top + 27,
                 CompanionUiStyle.TEXT, false);
         String id = font.plainSubstrByWidth(snapshot.creatureType(), Math.max(100, widthPanel - 150));
@@ -367,6 +462,17 @@ public final class CompanionScreen extends Screen {
                 CompanionUiStyle.ID_TEXT, false);
         g.text(font, Component.literal(String.format(Locale.ROOT, "%.1f / %.1f HP", snapshot.health(), snapshot.maxHealth())),
                 contentLeft, top + 43, CompanionUiStyle.STATUS_DEAD, false);
+        if (tab == Tab.MOVEMENT && movementMaxScroll() > 0) {
+            int trackTop = top + CONTENT_TOP;
+            int trackBottom = top + heightPanel - 14;
+            g.fill(left + widthPanel - 8, trackTop, left + widthPanel - 5, trackBottom, 0xFF4A4A4A);
+            int max = movementMaxScroll();
+            int thumbHeight = Math.max(16, (trackBottom - trackTop) * (trackBottom - trackTop)
+                    / Math.max(1, trackBottom - trackTop + max));
+            int thumbTop = trackTop + (trackBottom - trackTop - thumbHeight) * movementScroll / max;
+            g.fill(left + widthPanel - 9, thumbTop, left + widthPanel - 4,
+                    thumbTop + thumbHeight, 0xFFAAAAAA);
+        }
         super.extractRenderState(g, mouseX, mouseY, delta);
     }
 }

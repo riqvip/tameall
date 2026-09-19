@@ -5,6 +5,7 @@ import dev.riqvip.tameall.companion.BondRecord;
 import dev.riqvip.tameall.companion.CombatStance;
 import dev.riqvip.tameall.companion.CompanionMode;
 import dev.riqvip.tameall.companion.CompanionPresence;
+import dev.riqvip.tameall.companion.CompanionNames;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -12,10 +13,14 @@ import java.util.List;
 import java.util.UUID;
 
 /** Owner-scoped companion directory opened by the reusable Companion Whistle. */
-public record CompanionRosterPayload(List<Entry> entries) implements CustomPacketPayload {
+public record CompanionRosterPayload(List<Entry> entries, boolean openScreen) implements CustomPacketPayload {
     public static final Type<CompanionRosterPayload> ID = new Type<>(NetworkIds.ROSTER);
     public static final StreamCodec<RegistryFriendlyByteBuf, CompanionRosterPayload> CODEC =
             CustomPacketPayload.codec(CompanionRosterPayload::write, CompanionRosterPayload::read);
+
+    public CompanionRosterPayload(List<Entry> entries) {
+        this(entries, true);
+    }
 
     public CompanionRosterPayload {
         entries = entries == null ? List.of() : List.copyOf(entries);
@@ -23,10 +28,14 @@ public record CompanionRosterPayload(List<Entry> entries) implements CustomPacke
     }
 
     public static CompanionRosterPayload from(List<BondRecord> records) {
-        if (records == null || records.isEmpty()) return new CompanionRosterPayload(List.of());
+        return from(records, true);
+    }
+
+    public static CompanionRosterPayload from(List<BondRecord> records, boolean openScreen) {
+        if (records == null || records.isEmpty()) return new CompanionRosterPayload(List.of(), openScreen);
         // Keep the packet bounded even if an owner has accumulated more bonds
         // than the roster UI can display in one response.
-        return new CompanionRosterPayload(records.stream().limit(256).map(Entry::from).toList());
+        return new CompanionRosterPayload(records.stream().limit(256).map(Entry::from).toList(), openScreen);
     }
 
     @Override public Type<? extends CustomPacketPayload> type() { return ID; }
@@ -46,6 +55,7 @@ public record CompanionRosterPayload(List<Entry> entries) implements CustomPacke
             buf.writeUtf(entry.mode().name(), 32);
             buf.writeUtf(entry.stance().name(), 32);
         }
+        buf.writeBoolean(payload.openScreen);
     }
 
     private static CompanionRosterPayload read(RegistryFriendlyByteBuf buf) {
@@ -64,7 +74,7 @@ public record CompanionRosterPayload(List<Entry> entries) implements CustomPacke
                     enumValue(CompanionMode.class, buf.readUtf(32)),
                     enumValue(CombatStance.class, buf.readUtf(32))));
         }
-        return new CompanionRosterPayload(entries);
+        return new CompanionRosterPayload(entries, buf.readBoolean());
     }
 
     private static void writeNullable(RegistryFriendlyByteBuf buf, String value, int max) {
@@ -103,7 +113,7 @@ public record CompanionRosterPayload(List<Entry> entries) implements CustomPacke
 
         private static Entry from(BondRecord record) {
             String name = record.snapshot().displayName();
-            if (name == null || name.isBlank()) name = record.creatureType();
+            name = CompanionNames.displayName(name, record.creatureType());
             return new Entry(record.bondId(), name, record.creatureType(), record.dimension(),
                     record.position(), record.presence(),
                     record.snapshot().settings().mode(), record.snapshot().settings().stance());

@@ -17,9 +17,8 @@ public abstract class RangedBowAttackGoalMixin {
 
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
     private void tameall$preventProtectedArrow(CallbackInfo callback) {
-        if (CompanionCombat.rejectsAttack(mob, mob.getTarget())) {
-            CompanionCombat.clearManagedTarget(mob);
-            mob.setTarget(null);
+        if (!CompanionCombat.isAttackTargetValid(mob, mob.getTarget())) {
+            if (mob.isUsingItem()) mob.stopUsingItem();
             callback.cancel();
         }
     }
