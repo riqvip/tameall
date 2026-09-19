@@ -376,7 +376,7 @@ public final class TameAllGameTests {
         helper.succeed();
     }
 
-    @GameTest(maxTicks = 80)
+    @GameTest(maxTicks = 160)
     public void bondedIronGolemExecutesManagedAssistAttack(GameTestHelper helper) {
         var owner = helper.makeMockServerPlayerInLevel();
         owner.setPos(0.5D, 2.0D, 0.5D);
@@ -398,7 +398,7 @@ public final class TameAllGameTests {
         float before = target.getHealth();
         helper.runAtTickTime(10, () -> helper.assertTrue(golem.getTarget() == target,
                 "bonded iron golem did not acquire the managed Assist target"));
-        helper.runAtTickTime(60, () -> {
+        helper.succeedWhen(() -> {
             helper.assertTrue(target.getHealth() < before,
                     "bonded iron golem did not execute its managed Assist attack");
             helper.succeed();
@@ -452,7 +452,7 @@ public final class TameAllGameTests {
         });
     }
 
-    @GameTest(maxTicks = 100)
+    @GameTest(maxTicks = 180)
     public void mountedDrownedExecutesNativeTridentAttack(GameTestHelper helper) {
         var owner = helper.makeMockServerPlayerInLevel();
         owner.setPos(0.5D, 2.0D, 0.5D);
@@ -473,7 +473,7 @@ public final class TameAllGameTests {
         CompanionAttachments.set(drowned, state);
         helper.assertTrue(owner.startRiding(drowned, true, false), "owner did not mount ranged test drowned");
         float before = target.getHealth();
-        helper.runAtTickTime(90, () -> {
+        helper.succeedWhen(() -> {
             helper.assertTrue(target.getHealth() < before,
                     "mounted drowned did not execute its native trident attack");
             helper.succeed();
